@@ -2017,6 +2017,18 @@ if('serviceWorker' in navigator){
     });
   }catch(e){ /* 同上 */ }
 }
+
+/* ============================================================
+   画面回転・リサイズ対応：地図はコンテナのサイズ変化を自動検知しないため、
+   回転やウィンドウサイズ変更のたびに明示的に再計算させる。
+============================================================ */
+window.addEventListener('resize', () => {
+  clearTimeout(window._resizeDebounce);
+  window._resizeDebounce = setTimeout(() => {
+    if(_map) _map.invalidateSize();
+    if(_walkMap) _walkMap.invalidateSize();
+  }, 150);
+});
 </script>
 </body>
 </html>
