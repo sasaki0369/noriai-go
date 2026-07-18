@@ -26,24 +26,37 @@
     --danger:#D0392C; --danger-bg:#FBEEEC;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
+  html, body{ height:100%; }
   body{
-    background:#EDEDED; min-height:100vh; display:flex; align-items:center; justify-content:center;
-    font-family:'Noto Sans JP', sans-serif; color:var(--ink); padding:32px 16px; -webkit-font-smoothing:antialiased;
+    background:#EDEDED; min-height:100vh; min-height:100dvh;
+    font-family:'Noto Sans JP', sans-serif; color:var(--ink); -webkit-font-smoothing:antialiased;
   }
-  .rig{ display:flex; flex-direction:column; align-items:center; gap:16px; }
-  .rig-label{ color:#8A8A8A; font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; display:flex; align-items:center; gap:7px; }
-  .rig-dot{ width:6px; height:6px; border-radius:50%; background:var(--ink); }
-  .phone{ width:390px; max-width:92vw; height:812px; max-height:88vh; background:var(--white); border-radius:30px; border:9px solid var(--ink); box-shadow:0 24px 60px -18px rgba(0,0,0,.35); overflow:hidden; position:relative; display:flex; flex-direction:column; }
-  .notch{ position:absolute; top:0; left:50%; transform:translateX(-50%); width:110px; height:20px; background:var(--ink); border-bottom-left-radius:12px; border-bottom-right-radius:12px; z-index:60; }
-  .screen{ flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden; position:relative; }
-  .screen > div{ flex:1; min-height:0; display:flex; flex-direction:column; }
+  .rig{ width:100%; min-height:100vh; min-height:100dvh; display:flex; justify-content:center; }
+  .phone{
+    width:100%; max-width:520px; background:var(--white);
+    box-shadow:0 0 50px rgba(0,0,0,.06); position:relative;
+    display:flex; flex-direction:column;
+  }
+  .screen{ display:block; position:relative; }
+  #scr-register, #scr-payment-setup, #scr-matching, #scr-confirm, #scr-matched,
+  #scr-checkout, #scr-receipt, #scr-walk-route, #scr-walk-complete{
+    display:block;
+  }
+  .body-scroll{ overflow:visible; display:block; padding:20px; }
+  .body-scroll > * + *{ margin-top:14px; }
+  .footer-cta{ position:static; padding:14px 20px 24px; background:var(--white); border-top:1px solid var(--line); }
+
+  /* ---- 横画面（タブレット等）：内容の余白を少し広くとる ---- */
+  @media (orientation: landscape) and (min-width: 700px){
+    body{ padding:32px 0; }
+    .phone{ max-width:600px; border-radius:16px; overflow:hidden; min-height:calc(100vh - 64px); min-height:calc(100dvh - 64px); }
+  }
   .topbar{ padding:32px 20px 14px; border-bottom:1px solid var(--line); background:var(--white); }
   .brand{ font-weight:900; font-size:17px; letter-spacing:-.01em; display:flex; align-items:center; gap:7px; }
   .brand-sub{ font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--ink-soft); letter-spacing:.1em; margin-top:3px; text-transform:uppercase; }
   .steps{ display:flex; gap:4px; padding:12px 20px 0; }
   .step-seg{ flex:1; height:2px; background:var(--line); }
   .step-seg.on{ background:var(--ink); }
-  .body-scroll{ flex:1; min-height:0; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:14px; }
   .status-strip{ display:flex; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px 0; }
   .status-item{ flex:1; text-align:center; }
   .status-num{ font-family:'JetBrains Mono', monospace; font-weight:700; font-size:17px; color:var(--ink); }
@@ -166,27 +179,6 @@
   .route-sub{ font-size:10.5px; color:var(--ink-soft); font-family:'JetBrains Mono',monospace; margin-top:1px; }
   .route-leg-tag{ font-size:10px; color:var(--ink-faint); font-family:'JetBrains Mono',monospace; margin:2px 0 10px 0; }
 
-  /* ---- 実機のスマホで開いた場合：固定高さをやめ、ページ全体を自然にスクロールさせる ---- */
-  @media (max-width: 480px), (max-height: 720px){
-    body{ padding:0; align-items:stretch; justify-content:stretch; background:var(--white); display:block; }
-    .rig{ gap:0; display:block; }
-    .rig-label{ display:none; }
-    .phone{
-      width:100%; max-width:none;
-      height:auto; max-height:none; min-height:100vh;
-      border:none; border-radius:0; box-shadow:none;
-      display:block; overflow:visible;
-    }
-    .notch{ display:none; }
-    .screen{ display:block; min-height:100vh; overflow:visible; flex:none; }
-    #scr-register, #scr-payment-setup, #scr-matching, #scr-matched, #scr-checkout, #scr-receipt{
-      display:block;
-    }
-    .body-scroll{ overflow:visible; flex:none; display:block; height:auto; }
-    .body-scroll > * + *{ margin-top:14px; }
-    .footer-cta{ position:static; }
-  }
-
   /* ---- real map integration (Leaflet / OpenStreetMap) ---- */
   #route-map{
     width:100%; height:190px; border-radius:10px; border:1px solid var(--line);
@@ -237,10 +229,7 @@
 <body>
 
 <div class="rig">
-  <div class="rig-label"><span class="rig-dot"></span>PROTOTYPE — 目的地別マッチング／ルート最適化／距離按分割り勘</div>
-
   <div class="phone">
-    <div class="notch"></div>
     <div class="screen">
 
       <!-- ============ 1. 目的地登録 ============ -->
@@ -542,7 +531,6 @@
 
     </div>
   </div>
-  <div class="rig-label">複数出発駅対応シナリオ · デモデータ（座標は概算）</div>
 </div>
 
 <script>
