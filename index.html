@@ -264,7 +264,7 @@
             <label class="field-label">マッチング相手の制限</label>
             <select id="in-gender-filter">
               <option value="none">制限なし</option>
-              <option value="women_only">女性の利用者のみとマッチング</option>
+              <option value="women_only" id="opt-women-only">女性の利用者のみとマッチング</option>
               <option value="same">同性の利用者のみとマッチング</option>
             </select>
             <div class="field-err" id="gender-filter-note" style="color:var(--ink-soft);"></div>
@@ -815,6 +815,10 @@ function loadProfile(){
     const parsed = JSON.parse(raw);
     if(parsed && typeof parsed === 'object'){
       myProfile = { ...myProfile, ...parsed };
+      // 女性以外のプロフィールに women_only が残っていた場合の後方互換の安全策
+      if(myProfile.gender !== 'female' && myProfile.genderFilter === 'women_only'){
+        myProfile.genderFilter = 'none';
+      }
     }
   }catch(e){
     console.error('マッチング設定の読み込みに失敗しました:', e);
@@ -1217,11 +1221,27 @@ const trustThresholdRow = document.getElementById('trust-threshold-row');
 
 function populateSettingsForm(){
   document.getElementById('in-my-gender').value = myProfile.gender;
+  updateGenderFilterOptions();
   document.getElementById('in-gender-filter').value = myProfile.genderFilter;
-  document.getElementById('in-trust-threshold').value = String(myProfile.trustThreshold);
+  document.getElementById('in-trust-threshold').value = myProfile.trustThreshold.toFixed(1);
   trustFilterToggleEl.classList.toggle('on', myProfile.trustEnabled);
   trustThresholdRow.classList.toggle('hidden', !myProfile.trustEnabled);
   updateGenderFilterNote();
+}
+/**
+ * 「女性の利用者のみとマッチング」は、女性向けの安全機能（女性専用車両などと同じ考え方）のため、
+ * 自己申告の性別が「女性」の場合にのみ選択肢として表示する。
+ * 他の性別・未回答の利用者は「同性のみ」で同様の安心感を得られるようにしている。
+ */
+function updateGenderFilterOptions(){
+  const genderVal = document.getElementById('in-my-gender').value;
+  const womenOnlyOpt = document.getElementById('opt-women-only');
+  const filterSelect = document.getElementById('in-gender-filter');
+  const isFemale = genderVal === 'female';
+  womenOnlyOpt.hidden = !isFemale;
+  if(!isFemale && filterSelect.value === 'women_only'){
+    filterSelect.value = 'none';
+  }
 }
 function updateGenderFilterNote(){
   const note = document.getElementById('gender-filter-note');
@@ -1236,7 +1256,10 @@ document.getElementById('btn-settings-toggle').addEventListener('click', () => {
   settingsPanel.classList.toggle('hidden');
   if(!settingsPanel.classList.contains('hidden')) populateSettingsForm();
 });
-document.getElementById('in-my-gender').addEventListener('change', updateGenderFilterNote);
+document.getElementById('in-my-gender').addEventListener('change', () => {
+  updateGenderFilterOptions();
+  updateGenderFilterNote();
+});
 document.getElementById('in-gender-filter').addEventListener('change', updateGenderFilterNote);
 trustFilterToggleEl.addEventListener('click', () => {
   const on = !trustFilterToggleEl.classList.contains('on');
@@ -1246,6 +1269,10 @@ trustFilterToggleEl.addEventListener('click', () => {
 document.getElementById('btn-save-settings').addEventListener('click', () => {
   myProfile.gender = document.getElementById('in-my-gender').value;
   myProfile.genderFilter = document.getElementById('in-gender-filter').value;
+  // 保存の最終防衛として、女性以外が women_only を持っていた場合はここでも無効化する
+  if(myProfile.gender !== 'female' && myProfile.genderFilter === 'women_only'){
+    myProfile.genderFilter = 'none';
+  }
   myProfile.trustEnabled = trustFilterToggleEl.classList.contains('on');
   myProfile.trustThreshold = parseFloat(document.getElementById('in-trust-threshold').value);
   persistProfile();
