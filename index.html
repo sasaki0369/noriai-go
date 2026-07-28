@@ -224,6 +224,13 @@
   .shelter-btn .shelter-btn-icon{ font-size:19px; line-height:1; }
   .shelter-btn:active{ transform:scale(.97); }
   .shelter-btn.selected{ background:var(--ink); color:var(--white); box-shadow:0 3px 10px -3px rgba(0,0,0,.35); }
+
+  /* ---- 星評価ウィジェット ---- */
+  .rating-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .rating-name{ font-size:13px; font-weight:700; }
+  .rating-stars{ display:flex; gap:3px; }
+  .rating-star{ font-size:20px; color:var(--line); cursor:pointer; line-height:1; user-select:none; }
+  .rating-star.filled{ color:var(--ink); }
 </style>
 </head>
 <body>
@@ -240,6 +247,46 @@
           <div class="mode-toggle">
             <button class="mode-btn active" id="mode-btn-normal" type="button">平時</button>
             <button class="mode-btn" id="mode-btn-disaster" type="button">災害時</button>
+          </div>
+          <div style="text-align:right;">
+            <span class="link-line" id="btn-settings-toggle">⚙ マッチング設定</span>
+          </div>
+          <div id="settings-panel" class="hidden card flat">
+            <div class="eyebrow" style="margin-bottom:8px;">プロフィール（任意）</div>
+            <label class="field-label">あなたの性別</label>
+            <select id="in-my-gender">
+              <option value="unspecified">回答しない</option>
+              <option value="female">女性</option>
+              <option value="male">男性</option>
+            </select>
+
+            <div class="eyebrow" style="margin:14px 0 8px;">マッチング相手の制限</div>
+            <label class="field-label">マッチング相手の制限</label>
+            <select id="in-gender-filter">
+              <option value="none">制限なし</option>
+              <option value="women_only">女性の利用者のみとマッチング</option>
+              <option value="same">同性の利用者のみとマッチング</option>
+            </select>
+            <div class="field-err" id="gender-filter-note" style="color:var(--ink-soft);"></div>
+
+            <div class="toggle-row" style="margin-top:14px;">
+              <div>
+                <div class="pay-method-title" style="font-size:13px;">評価の高い利用者とのみマッチングする</div>
+                <div class="pay-method-sub" style="font-family:'Noto Sans JP';">同乗した方どうしの相互評価をもとにした信頼度で絞り込みます</div>
+              </div>
+              <div class="switch" id="trust-filter-toggle"><div class="switch-knob"></div></div>
+            </div>
+            <div id="trust-threshold-row" class="hidden" style="margin-top:10px;">
+              <label class="field-label">最低評価</label>
+              <select id="in-trust-threshold">
+                <option value="3.5">★3.5以上</option>
+                <option value="4.0">★4.0以上</option>
+                <option value="4.5">★4.5以上</option>
+              </select>
+            </div>
+
+            <div class="banner" style="margin-top:12px;">条件を厳しくするほど、マッチングが成立しにくくなり単独手配になる可能性が上がります。</div>
+            <button class="btn btn-primary btn-sm" id="btn-save-settings" style="width:100%; margin-top:10px;">この設定を保存する</button>
           </div>
           <div>
             <label class="field-label">出発駅</label>
@@ -484,6 +531,12 @@
             <div class="receipt-foot"><div class="fare-row" style="border:none; padding:0;"><span class="fare-label" style="font-weight:700; color:var(--ink);">合計お支払い額</span><span class="fare-val big" id="receipt-total">—</span></div></div>
           </div>
           <div class="banner" id="receipt-savings-banner"></div>
+          <div class="card flat" id="rating-section">
+            <div class="eyebrow" style="margin-bottom:8px;">同乗した方を評価してください</div>
+            <div id="rating-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+            <button class="btn btn-primary btn-sm" id="btn-submit-rating" style="width:100%; margin-top:12px;">評価を送信する</button>
+            <div class="field-err" id="rating-thanks" style="color:var(--ink-soft);"></div>
+          </div>
           <button class="btn btn-outline" style="width:100%;" id="btn-download-receipt">領収書をダウンロード（PDF）</button>
           <div class="link-reset" onclick="resetApp()">最初の画面に戻る（デモをリセット）</div>
         </div>
@@ -742,6 +795,48 @@ function parseImportCode(code){
 
 let travelMode = 'taxi'; // 'taxi' | 'walk'  （災害時に避難所を選ぶ際に選択）
 
+/* ============================================================
+   マッチング設定：性別・信頼度によるマッチング相手の制限
+============================================================ */
+const PROFILE_STORAGE_KEY = 'noriaigo_profile_v1';
+let myProfile = {
+  gender: 'unspecified',      // 'female' | 'male' | 'unspecified'（任意・自己申告）
+  genderFilter: 'none',       // 'none' | 'same' | 'women_only'
+  trustEnabled: false,        // 評価の高い利用者とのみマッチングする
+  trustThreshold: 4.0,        // しきい値
+};
+// 自分自身の評価（デモ用。実サービスでは他の利用者からの評価の平均になる）
+let myRatingHistory = []; // 過去に自分がつけた評価の記録（デモ表示用）
+
+function loadProfile(){
+  try{
+    const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
+    if(!raw) return;
+    const parsed = JSON.parse(raw);
+    if(parsed && typeof parsed === 'object'){
+      myProfile = { ...myProfile, ...parsed };
+    }
+  }catch(e){
+    console.error('マッチング設定の読み込みに失敗しました:', e);
+  }
+}
+function persistProfile(){
+  try{
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(myProfile));
+  }catch(e){
+    console.error('マッチング設定の端末への保存に失敗しました:', e);
+  }
+}
+loadProfile();
+
+/** 星評価の平均値から、デモ用の疑似的な「利用者の信頼度」ラベルを返す */
+function trustLabel(rating){
+  if(rating >= 4.5) return '非常に高い';
+  if(rating >= 4.0) return '高い';
+  if(rating >= 3.0) return '標準';
+  return '実績が少ない';
+}
+
 function haversine(a,b){
   const R=6371;
   const dLat=(b.lat-a.lat)*Math.PI/180, dLng=(b.lng-a.lng)*Math.PI/180;
@@ -840,9 +935,33 @@ function generateRandomCompanions(destName){
   else if(r < 0.70) count = 2;  // 3人
   else count = 3;                // 4人
 
+  if(count === 0) return [];
+
+  // 実際の待機人数は目標人数より少し多いプールを仮定し、そこから
+  // マッチング設定（性別・信頼度）に合う人だけを選ぶ、という現実的な挙動を再現する。
+  // 条件を厳しくするほど、母数から絞り込まれて実際のグループ人数が減りうる。
+  const poolSize = count + 3;
+  const candidates = [];
+  for(let i = 0; i < poolSize; i++){
+    const gender = Math.random() < 0.5 ? 'female' : 'male';
+    // 評価は概ね3.6〜5.0に分布させ、1〜2割は実績の少ない2.0〜3.6も混ぜる
+    const rating = Math.random() < 0.82
+      ? Math.round((3.6 + Math.random() * 1.4) * 10) / 10
+      : Math.round((2.0 + Math.random() * 1.6) * 10) / 10;
+    candidates.push({ gender, rating });
+  }
+
+  const filtered = candidates.filter(c => {
+    if(myProfile.genderFilter === 'women_only' && c.gender !== 'female') return false;
+    if(myProfile.genderFilter === 'same' && myProfile.gender !== 'unspecified' && c.gender !== myProfile.gender) return false;
+    if(myProfile.trustEnabled && c.rating < myProfile.trustThreshold) return false;
+    return true;
+  });
+  const chosen = filtered.slice(0, count);
+
   const shortLabels = ['近隣A','近隣B','近隣C','近隣D','近隣E'];
   const companions = [];
-  for(let i = 0; i < count; i++){
+  chosen.forEach((c, i) => {
     // 7割は完全に同じ地点（同時下車）、3割は近隣（300m〜2km）の別地点として生成する
     const sameSpot = Math.random() < 0.7;
     let destKey;
@@ -855,8 +974,14 @@ function generateRandomCompanions(destName){
       destKey = `${destName}（${shortLabels[i % shortLabels.length]}）`;
       STATIONS[destKey] = pt;
     }
-    companions.push({ id: 'rand-' + Math.random().toString(36).slice(2,8), name: RANDOM_COMPANION_NAMES[i % RANDOM_COMPANION_NAMES.length], dest: destKey });
-  }
+    companions.push({
+      id: 'rand-' + Math.random().toString(36).slice(2,8),
+      name: RANDOM_COMPANION_NAMES[i % RANDOM_COMPANION_NAMES.length],
+      dest: destKey,
+      gender: c.gender,
+      rating: c.rating,
+    });
+  });
   return companions;
 }
 
@@ -970,8 +1095,8 @@ function stopDisplayName(stopName, result){
 
 async function computeMatch(destName, myMethodLabel, forceSolo, precomputedMatches){
   const matched = forceSolo ? [] : (precomputedMatches || findMatches(destName));
-  const group = [{id:'me', name:'佐々木様', dest:destName, isMe:true, method:myMethodLabel}]
-    .concat(matched.map((m,i) => ({id:m.id, name:m.name, dest:m.dest, isMe:false, method:cardBrands[i % cardBrands.length]})));
+  const group = [{id:'me', name:'佐々木様', dest:destName, isMe:true, method:myMethodLabel, gender: myProfile.gender, rating: null}]
+    .concat(matched.map((m,i) => ({id:m.id, name:m.name, dest:m.dest, isMe:false, method:cardBrands[i % cardBrands.length], gender:m.gender, rating:m.rating})));
 
   // 目的地でグルーピング（同駅は同時下車）
   const stopMap = {};
@@ -1084,6 +1209,48 @@ function setAppMode(mode){
 }
 modeBtnNormal.addEventListener('click', () => setAppMode('normal'));
 modeBtnDisaster.addEventListener('click', () => setAppMode('disaster'));
+
+/* ---------- マッチング設定（性別・信頼度フィルタ） ---------- */
+const settingsPanel = document.getElementById('settings-panel');
+const trustFilterToggleEl = document.getElementById('trust-filter-toggle');
+const trustThresholdRow = document.getElementById('trust-threshold-row');
+
+function populateSettingsForm(){
+  document.getElementById('in-my-gender').value = myProfile.gender;
+  document.getElementById('in-gender-filter').value = myProfile.genderFilter;
+  document.getElementById('in-trust-threshold').value = String(myProfile.trustThreshold);
+  trustFilterToggleEl.classList.toggle('on', myProfile.trustEnabled);
+  trustThresholdRow.classList.toggle('hidden', !myProfile.trustEnabled);
+  updateGenderFilterNote();
+}
+function updateGenderFilterNote(){
+  const note = document.getElementById('gender-filter-note');
+  const filterVal = document.getElementById('in-gender-filter').value;
+  const genderVal = document.getElementById('in-my-gender').value;
+  note.textContent = (filterVal === 'same' && genderVal === 'unspecified')
+    ? '※「同性のみ」を使うには、上のご自身の性別も設定してください。'
+    : '';
+}
+
+document.getElementById('btn-settings-toggle').addEventListener('click', () => {
+  settingsPanel.classList.toggle('hidden');
+  if(!settingsPanel.classList.contains('hidden')) populateSettingsForm();
+});
+document.getElementById('in-my-gender').addEventListener('change', updateGenderFilterNote);
+document.getElementById('in-gender-filter').addEventListener('change', updateGenderFilterNote);
+trustFilterToggleEl.addEventListener('click', () => {
+  const on = !trustFilterToggleEl.classList.contains('on');
+  trustFilterToggleEl.classList.toggle('on', on);
+  trustThresholdRow.classList.toggle('hidden', !on);
+});
+document.getElementById('btn-save-settings').addEventListener('click', () => {
+  myProfile.gender = document.getElementById('in-my-gender').value;
+  myProfile.genderFilter = document.getElementById('in-gender-filter').value;
+  myProfile.trustEnabled = trustFilterToggleEl.classList.contains('on');
+  myProfile.trustThreshold = parseFloat(document.getElementById('in-trust-threshold').value);
+  persistProfile();
+  settingsPanel.classList.add('hidden');
+});
 
 function renderShelterList(){
   const listEl = document.getElementById('shelter-list');
@@ -1603,7 +1770,7 @@ function renderConfirmScreen(result){
   list.appendChild(originRow);
 
   result.legs.forEach((leg, idx) => {
-    const names = leg.members.map(m => m.isMe ? 'あなた' : m.name).join('・');
+    const names = leg.members.map(m => m.isMe ? 'あなた' : `${m.name}（★${m.rating.toFixed(1)}）`).join('・');
     const isLast = idx === result.legs.length - 1;
     const row = document.createElement('div');
     row.className = 'route-item';
@@ -1970,6 +2137,66 @@ function renderReceipt(result){
   document.getElementById('receipt-savings-banner').innerHTML = me.savings>0
     ? `単独手配（¥${me.solo.toLocaleString()}・道路距離${soloTagReceipt}）と比較して <b>¥${(me.solo-me.finalPay).toLocaleString()}</b>（約${Math.round((me.solo-me.finalPay)/me.solo*100)}%）の節約になりました。`
     : `今回は単独乗車でした。`;
+
+  renderRatingSection(result);
+}
+
+/* ============================================================
+   同乗者への評価（デモ：相手ごとに1〜5の星をつけて送信する）
+============================================================ */
+function renderRatingSection(result){
+  const section = document.getElementById('rating-section');
+  const listEl = document.getElementById('rating-list');
+  const thanksEl = document.getElementById('rating-thanks');
+  const submitBtn = document.getElementById('btn-submit-rating');
+  thanksEl.textContent = '';
+  listEl.innerHTML = '';
+
+  const others = result.group.filter(m => !m.isMe);
+  if(others.length === 0){
+    section.classList.add('hidden');
+    return;
+  }
+  section.classList.remove('hidden');
+  submitBtn.disabled = false;
+  submitBtn.classList.remove('hidden');
+  submitBtn.textContent = '評価を送信する';
+
+  const givenRatings = {};
+  others.forEach(m => {
+    givenRatings[m.id] = 0;
+    const row = document.createElement('div');
+    row.className = 'rating-row';
+    const starsHtml = [1,2,3,4,5].map(n =>
+      `<span class="rating-star" data-member="${m.id}" data-star="${n}">★</span>`
+    ).join('');
+    row.innerHTML = `<div class="rating-name">${m.name}</div><div class="rating-stars">${starsHtml}</div>`;
+    listEl.appendChild(row);
+  });
+
+  listEl.querySelectorAll('.rating-star').forEach(starEl => {
+    starEl.addEventListener('click', () => {
+      const memberId = starEl.dataset.member;
+      const star = parseInt(starEl.dataset.star, 10);
+      givenRatings[memberId] = star;
+      listEl.querySelectorAll(`.rating-star[data-member="${memberId}"]`).forEach(s => {
+        s.classList.toggle('filled', parseInt(s.dataset.star,10) <= star);
+      });
+    });
+  });
+
+  submitBtn.onclick = () => {
+    const entries = Object.entries(givenRatings);
+    if(entries.some(([,v]) => v === 0)){
+      thanksEl.textContent = '全員に評価をつけてから送信してください。';
+      return;
+    }
+    myRatingHistory.push({ at: new Date().toISOString(), ratings: givenRatings });
+    listEl.querySelectorAll('.rating-star').forEach(s => s.style.pointerEvents = 'none');
+    submitBtn.disabled = true;
+    submitBtn.textContent = '評価を送信しました ✓';
+    thanksEl.textContent = 'ご協力ありがとうございました。実際のサービスでは、この評価が今後のマッチングの信頼度に反映されます。';
+  };
 }
 
 document.getElementById('btn-download-receipt').addEventListener('click', function(){
